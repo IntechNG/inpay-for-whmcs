@@ -275,5 +275,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Acknowledgments
 
 - Built following WHMCS best practices
-- Inspired by the Paystack WHMCS integration
 - Community feedback and contributions
