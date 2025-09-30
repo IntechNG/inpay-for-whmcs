@@ -19,6 +19,7 @@ require_once __DIR__ . '/../../../init.php';
 require_once __DIR__ . '/../../../includes/gatewayfunctions.php';
 require_once __DIR__ . '/../../../includes/invoicefunctions.php';
 
+
 // Detect module name from filename.
 $gatewayModuleName = basename(__FILE__, '.php');
 
@@ -57,8 +58,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
 } else {
     // Direct callback from user redirect after payment
-    $invoiceId = filter_input(INPUT_GET, "invoiceid", FILTER_SANITIZE_NUMBER_INT);
-    $reference = filter_input(INPUT_GET, "reference", FILTER_SANITIZE_STRING);
+$invoiceId = filter_input(INPUT_GET, "invoiceid", FILTER_SANITIZE_NUMBER_INT);
+$reference = filter_input(INPUT_GET, "reference", FILTER_SANITIZE_STRING);
 }
 
 // Validate required parameters
@@ -136,10 +137,10 @@ function verifyInpayTransaction($reference, $secretKey)
     
     curl_close($ch);
     
-            if ($httpCode !== 200) {
+    if ($httpCode !== 200) {
                 $txStatus->error = "API Error: HTTP " . $httpCode . " - Reference: " . $reference;
-                return $txStatus;
-            }
+        return $txStatus;
+    }
     
     $body = json_decode($response);
     if (!$body) {
@@ -238,9 +239,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     // Log webhook event
-            if ($gatewayParams['gatewayLogs'] == 'on') {
+    if ($gatewayParams['gatewayLogs'] == 'on') {
                 logTransaction($gatewayModuleName, "Webhook event received: " . $event->event, "Information");
-            }
+    }
     
     // Process payment completion events
     switch ($event->event) {
@@ -251,7 +252,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $transactionData = $event->data;
             $inpayReference = $transactionData->reference ?? '';
             
-                    if ($gatewayParams['gatewayLogs'] == 'on') {
+            if ($gatewayParams['gatewayLogs'] == 'on') {
                         logTransaction($gatewayModuleName, "Payment completion webhook received for reference: " . $inpayReference, "Successful");
                     }
             
@@ -262,28 +263,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Fallback: parse invoice ID from transaction reference format
             if (!$whmcsReference || !$invoiceId) {
                 $referenceParts = explode('_', $inpayReference);
-                if (count($referenceParts) >= 2) {
-                    $invoiceId = (int) $referenceParts[0];
+            if (count($referenceParts) >= 2) {
+                $invoiceId = (int) $referenceParts[0];
                     $whmcsReference = $inpayReference;
                 }
             }
-            
-            if ($invoiceId && $whmcsReference) {
-                // Verify transaction status with iNPAY API for additional security
-                $txStatus = verifyInpayTransaction($inpayReference, $secretKey);
                 
-                if (!$txStatus->error && $txStatus->status === 'completed') {
+            if ($invoiceId && $whmcsReference) {
+                        // Verify transaction status with iNPAY API for additional security
+                        $txStatus = verifyInpayTransaction($inpayReference, $secretKey);
+                        
+                        if ($gatewayParams['gatewayLogs'] == 'on') {
+                            logTransaction($gatewayModuleName, "API verification result - Reference: " . $inpayReference . ", Status: " . ($txStatus->status ?? 'unknown') . ", Error: " . ($txStatus->error ?? 'none'), "Information");
+                        }
+                        
+                        if (!$txStatus->error && $txStatus->status === 'completed') {
                     $txStatus->reference = $whmcsReference;
                     
                     // Prevent duplicate payment processing
                     $existingPayment = checkCbTransID($whmcsReference);
                     
                     if (!$existingPayment) {
+                        // Debug: Log webhook processing details
+                        if ($gatewayParams['gatewayLogs'] == 'on') {
+                            logTransaction($gatewayModuleName, "Webhook processing - Invoice: " . $invoiceId . ", iNPAY Ref: " . $inpayReference . ", WHMCS Ref: " . $whmcsReference . ", Amount: " . ($txStatus->amount / 100), "Information");
+                        }
+                        
                         processSuccessfulPayment($invoiceId, $whmcsReference, $txStatus, $gatewayParams, $gatewayModuleName);
                         
-                                if ($gatewayParams['gatewayLogs'] == 'on') {
-                                    logTransaction($gatewayModuleName, "Payment successfully processed via webhook for reference: " . $whmcsReference, "Successful");
-                                }
+                        if ($gatewayParams['gatewayLogs'] == 'on') {
+                            logTransaction($gatewayModuleName, "Payment successfully processed via webhook for reference: " . $whmcsReference, "Successful");
+                        }
                     } else {
                         if ($gatewayParams['gatewayLogs'] == 'on') {
                             logTransaction($gatewayModuleName, "Payment already processed for reference: " . $whmcsReference . " (duplicate prevented)", "Information");
@@ -293,7 +303,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             if ($gatewayParams['gatewayLogs'] == 'on') {
                                 logTransaction($gatewayModuleName, "Webhook received but API verification failed for reference: " . $inpayReference, "Unsuccessful");
                             }
-                        }
+                }
             }
             break;
             
@@ -304,9 +314,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $transactionData = $event->data;
             $reference = $transactionData->reference ?? '';
             
-                    if ($gatewayParams['gatewayLogs'] == 'on') {
+            if ($gatewayParams['gatewayLogs'] == 'on') {
                         logTransaction($gatewayModuleName, "Payment failure webhook received for reference: " . $reference, "Unsuccessful");
-                    }
+            }
             break;
             
         case 'payment.virtual_payid.cancelled':
@@ -316,9 +326,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $transactionData = $event->data;
             $reference = $transactionData->reference ?? '';
             
-                    if ($gatewayParams['gatewayLogs'] == 'on') {
+            if ($gatewayParams['gatewayLogs'] == 'on') {
                         logTransaction($gatewayModuleName, "Payment cancellation webhook received for reference: " . $reference, "Unsuccessful");
-                    }
+            }
             break;
             
         default:
@@ -332,17 +342,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     die("OK");
 }
 
+
 // Handle direct callback (GET requests)
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     // Check if payment was already processed by webhook
     $existingPayment = checkCbTransID($reference);
-    
+
     if ($existingPayment) {
-        if ($gatewayParams['gatewayLogs'] == 'on') {
+    if ($gatewayParams['gatewayLogs'] == 'on') {
             logTransaction($gatewayModuleName, "Payment already processed via webhook for reference: " . $reference, "Information");
         }
-    } else {
-        if ($gatewayParams['gatewayLogs'] == 'on') {
+} else {
+    if ($gatewayParams['gatewayLogs'] == 'on') {
             logTransaction($gatewayModuleName, "GET callback received for reference: " . $reference . " (payment processing pending)", "Information");
         }
     }
@@ -374,23 +385,12 @@ function processSuccessfulPayment($invoiceId, $reference, $txStatus, $gatewayPar
          */
         checkCbTransID($reference);
         
-        // Amount is already in kobo from iNPAY Checkout webhook
-        $amount = floatval($txStatus->amount ?? 0) / 100;
+        // Get amount from transaction status (convert from kobo to Naira)
+        $amount = ($txStatus->amount ?? 0) / 100;
         
-        // Handle currency conversion if needed
-        if ($gatewayParams['convertto']) {
-            $result = select_query(
-                "tblclients", 
-                "tblinvoices.invoicenum,tblclients.currency,tblcurrencies.code", 
-                array("tblinvoices.id" => $invoiceId), 
-                "", "", "", 
-                "tblinvoices ON tblinvoices.userid=tblclients.id INNER JOIN tblcurrencies ON tblcurrencies.id=tblclients.currency"
-            );
-            $data = mysql_fetch_array($result);
-            $invoiceCurrencyId = $data['currency'];
-            
-            $convertToAmount = convertCurrency($amount, $gatewayParams['convertto'], $invoiceCurrencyId);
-            $amount = format_as_currency($convertToAmount);
+        // Debug logging (only when enabled in gateway configuration)
+        if ($gatewayParams['gatewayLogs'] == 'on') {
+            logTransaction($gatewayModuleName, "Processing payment - Invoice: " . $invoiceId . ", Amount: " . $amount . ", Reference: " . $reference, "Information");
         }
         
         /**

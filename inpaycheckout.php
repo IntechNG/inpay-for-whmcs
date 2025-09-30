@@ -28,22 +28,8 @@ function inpaycheckout_config()
     $isSSL = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || $_SERVER['SERVER_PORT'] == 443);
     $baseUrl = 'http' . ($isSSL ? 's' : '') . '://' . $_SERVER['HTTP_HOST'];
     
-    // Get the base WHMCS path
-    $currentPath = $_SERVER['REQUEST_URI'];
-    if (strpos($currentPath, '/admin/') !== false) {
-        $currentPath = str_replace('/admin/', '/', $currentPath);
-    }
-    
-    $whmcsPath = '';
-    if (strpos($currentPath, '/modules/gateways/') !== false) {
-        $whmcsPath = substr($currentPath, 0, strpos($currentPath, '/modules/gateways/'));
-    } elseif (strpos($currentPath, '/admin/') !== false) {
-        $whmcsPath = substr($currentPath, 0, strpos($currentPath, '/admin/'));
-    } else {
-        $whmcsPath = dirname($currentPath);
-    }
-    
-    $callbackUrl = $baseUrl . $whmcsPath . '/modules/gateways/callback/inpaycheckout.php';
+    // Simple and reliable webhook URL generation
+    $callbackUrl = $baseUrl . '/members/modules/gateways/callback/inpaycheckout.php';
     
     return array(
         'FriendlyName' => array(
@@ -55,6 +41,12 @@ function inpaycheckout_config()
             'Type' => 'yesno',
             'Description' => 'Copy this URL to your iNPAY Dashboard → Settings → Webhooks: <code>' . $callbackUrl . '</code>',
             'Default' => "'" . $callbackUrl . "'",
+        ),
+        'gatewayLogs' => array(
+            'FriendlyName' => 'Gateway logs',
+            'Type' => 'yesno',
+            'Description' => 'Tick to enable gateway logs for debugging',
+            'Default' => '0'
         ),
         'secretKey' => array(
             'FriendlyName' => 'Secret Key',
@@ -104,22 +96,10 @@ function inpaycheckout_link($params)
     // Get API key
     $publicKey = $params['publicKey'];
     
-    // Generate callback URL
+    // Generate callback URL - simple and reliable
     $isSSL = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || $_SERVER['SERVER_PORT'] == 443);
     $baseUrl = 'http' . ($isSSL ? 's' : '') . '://' . $_SERVER['HTTP_HOST'];
-    $currentPath = $_SERVER['REQUEST_URI'];
-    if (strpos($currentPath, '/admin/') !== false) {
-        $currentPath = str_replace('/admin/', '/', $currentPath);
-    }
-    $whmcsPath = '';
-    if (strpos($currentPath, '/modules/gateways/') !== false) {
-        $whmcsPath = substr($currentPath, 0, strpos($currentPath, '/modules/gateways/'));
-    } elseif (strpos($currentPath, '/admin/') !== false) {
-        $whmcsPath = substr($currentPath, 0, strpos($currentPath, '/admin/'));
-    } else {
-        $whmcsPath = dirname($currentPath);
-    }
-    $callbackUrl = $baseUrl . $whmcsPath . '/modules/gateways/callback/inpaycheckout.php?' . 
+    $callbackUrl = $baseUrl . '/members/modules/gateways/callback/inpaycheckout.php?' . 
         http_build_query(array(
             'invoiceid' => $invoiceId,
             'reference' => $txnRef
@@ -178,9 +158,13 @@ function inpaycheckout_link($params)
                         onClose: function() {
                             button.disabled = false;
                             button.textContent = "Pay Now";
+                            // Simply refresh the page to check payment status
+                            setTimeout(function() {
+                                window.location.reload();
+                            }, 3000);
                         },
                         onSuccess: function(response) {
-                            // Refresh the current invoice page to show updated payment status
+                            // Payment successful - refresh page
                             window.location.reload();
                         },
                         onError: function(error) {
